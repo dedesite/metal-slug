@@ -1,18 +1,14 @@
 import gg
 import gx
+import engine
 
 struct Game {
 mut:
-	gg &gg.Context = 0
-	img gg.Image
+	e engine.Engine
 }
 
 fn on_frame(mut game Game) {
-	game.gg.begin()
-
-	game.gg.draw_image(0, 0, 100, 100, game.img)
-
-	game.gg.end()
+	game.e.update_sprites()
 }
 
 fn on_event(e &gg.Event, mut game Game) {
@@ -20,7 +16,7 @@ fn on_event(e &gg.Event, mut game Game) {
 
 fn main() {
 	mut game := &Game{}
-	game.gg = gg.new_context(
+	game.e.ctx = gg.new_context(
 		width: 640
 		height: 480
 		window_title: 'Metal Vlug!'
@@ -31,7 +27,6 @@ fn main() {
 		event_fn: on_event
 	)
 
-	//game.img = game.gg.create_image('./sprites/Neo Geo NGCD - Metal Slug - Marco Rossi.gif')
-	game.img = game.gg.create_image_with_size('./sprites/Neo Geo NGCD - Metal Slug - Marco Rossi.gif', 100, 100)
-	game.gg.run()
+	game.e.create_animated_sprite('./sprites/Neo Geo NGCD - Metal Slug - Marco Rossi.gif')
+	game.e.ctx.run()
 }
