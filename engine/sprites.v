@@ -35,7 +35,7 @@ mut:
 
 struct AnimatedSprite {
 	Sprite
-	fps        int = 24
+	fps        int = 8
 	animations []Animation
 mut:
 	current_animation_index int
@@ -48,7 +48,7 @@ fn (mut s AnimatedSprite) animate(ctx gg.Context, delta_t f64) {
 		mut current_animation := &s.animations[s.current_animation_index]
 		current_animation.current_frame_ms += delta_t
 		if current_animation.current_frame_ms > 1000 / s.fps {
-			println('New frame ${current_animation.current_frame_ms}')
+			//println('New frame ${current_animation.current_frame_ms}')
 			current_animation.current_frame_ms = 0
 			if current_animation.current_frame_index < current_animation.frames.len - 1 {
 				current_animation.current_frame_index++
@@ -76,21 +76,20 @@ pub fn (mut e Engine) create_animated_sprite(file string) {
 	}
 	s.img = e.ctx.create_image(file)
 	s.rect = gg.Rect{0, 0, 100, 100}
-	// s.animations << 
 	e.sprites << s
 }
 
 pub fn (mut e Engine) update_sprites() {
 	e.ctx.begin()
 
-	delta_t := f64(e.frame_sw.elapsed().microseconds()) / 100.0
+	delta_t := f64(e.frame_sw.elapsed().microseconds()) / 1000.0
+	e.frame_sw.restart()
 
 	for mut sprite in e.sprites {
 		sprite.animate(e.ctx, delta_t)
 	}
 
 	e.ctx.end()
-	e.frame_sw.restart()
 }
 
 // Not working for now because we can't access image_cache...
