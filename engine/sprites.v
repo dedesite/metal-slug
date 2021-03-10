@@ -48,7 +48,7 @@ fn (mut s AnimatedSprite) animate(ctx gg.Context, delta_t f64) {
 		mut current_animation := &s.animations[s.current_animation_index]
 		current_animation.current_frame_ms += delta_t
 		if current_animation.current_frame_ms > 1000 / s.fps {
-			//println('New frame ${current_animation.current_frame_ms}')
+			// println('New frame ${current_animation.current_frame_ms}')
 			current_animation.current_frame_ms = 0
 			if current_animation.current_frame_index < current_animation.frames.len - 1 {
 				current_animation.current_frame_index++
@@ -65,15 +65,25 @@ pub fn (mut e Engine) create_animated_sprite(file string) {
 	mut s := AnimatedSprite{
 		animations: [
 			{
+				/*
 				frames: [
 					gg.Rect{0, 0, 50, 50},
 					gg.Rect{32, 0, 50, 50},
 					gg.Rect{65, 0, 50, 50},
 					gg.Rect{97, 0, 50, 50},
 				]
+				*/
+				frames: [
+					gg.Rect{125, 1535, 25, 25},
+					gg.Rect{152, 1535, 25, 25},
+					gg.Rect{175, 1535, 25, 25},
+					gg.Rect{202, 1535, 25, 25},
+					gg.Rect{223, 1535, 25, 25},
+				]
 			},
 		]
 	}
+
 	s.img = e.ctx.create_image(file)
 	s.rect = gg.Rect{0, 0, 100, 100}
 	e.sprites << s
