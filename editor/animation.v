@@ -98,7 +98,6 @@ fn window_mouse_up(evt ui.MouseEvent, window &ui.Window) {
 fn window_mouse_move(evt ui.MouseMoveEvent, window &ui.Window) {
 	mut app := &State(window.state)
 	if app.mouse_down {
-		println('go $app.mouse_diff_x $app.mouse_diff_y')
 		if app.mouse_prev_x != -1 {
 			app.mouse_diff_x, app.mouse_diff_y = evt.x - app.mouse_prev_x, evt.y - app.mouse_prev_y
 		}
@@ -136,13 +135,11 @@ fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 		app.current_sprite = ctx.create_image(app.current_sprite_path)
 	}
 
-	if app.image_offset_x == 0 {
-		app.image_offset_x, app.image_offset_y = canvas.x, canvas.y
-	}
-
-	image_larger := app.current_sprite.width > app.current_sprite.height
+	// Fit image inside the canvas
+	// @todo doesn't work on some cases like is_image_larger false and canvas width < image width
+	is_image_larger := app.current_sprite.width > app.current_sprite.height
 	mut image_width, mut image_height := app.current_sprite.width, app.current_sprite.height
-	if image_larger {
+	if is_image_larger {
 		image_height = int(image_height * f32(canvas.width) / f32(image_width))
 		image_width = canvas.width
 	} else {
@@ -150,20 +147,43 @@ fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 		image_height = canvas.height
 	}
 
+	// Applying zoom
+	// @todo add a way to zoom at mouse position
 	image_width *= int(app.zoom_scale)
 	image_height *= int(app.zoom_scale)
 
+	// Calculate offset (we can grab image on mouse move + down)
 	// Only move image when it is not entirely display
 	// @temp not fully functionnal right now
-	if app.mouse_diff_x != 0 && image_width > canvas.width
-		&& app.image_offset_x + app.mouse_diff_x >= canvas.x {
-		app.image_offset_x += int(app.mouse_diff_x)
+	new_offset_x := app.image_offset_x - int(app.mouse_diff_x)
+	if app.mouse_diff_x != 0 && image_width > canvas.width && new_offset_x >= 0 {
+		// @temp Doesn't work for all zoom factor
+		// @todo find a way to calculate the current pixel size
+		// && new_offset_x + canvas.width < app.current_sprite.width {
+		app.image_offset_x = new_offset_x
 	}
 
-	if app.mouse_diff_y != 0 && image_height > canvas.height
-		&& app.image_offset_y + app.mouse_diff_y >= canvas.y {
-		app.image_offset_y += int(app.mouse_diff_y)
+	new_offset_y := app.image_offset_y - int(app.mouse_diff_y)
+	if app.mouse_diff_y != 0 && image_height > canvas.height && new_offset_y >= 0 {
+		// @temp Doesn't work for all zoom factor
+		// @todo find a way to calculate the current pixel size
+		// && new_offset_y < app.current_sprite.height {
+		app.image_offset_y = new_offset_y
 	}
-	ctx.draw_image(app.image_offset_x, app.image_offset_y, image_width, image_height,
+
+	// Calculate which part to display and crop image to canvas
+	mut image_part_width, mut image_part_height := app.current_sprite.width, app.current_sprite.height
+	if image_width > canvas.width {
+		image_part_width = int(image_part_width * f32(canvas.width) / f32(image_width))
+		image_width = canvas.width
+	}
+
+	if image_height > canvas.height {
+		image_part_height = int(image_part_height * f32(canvas.height) / f32(image_height))
+		image_height = canvas.height
+	}
+
+	// @todo maybe add an offset on the image rect to be able to create rectangle at the image edges.
+	ctx.draw_image_part(gg.Rect{canvas.x, canvas.y, image_width, image_height}, gg.Rect{app.image_offset_x, app.image_offset_y, image_part_width, image_part_height},
 		app.current_sprite)
 }
