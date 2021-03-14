@@ -1,6 +1,7 @@
 import ui
 import os
 import gg
+import gx
 
 const (
 	win_width  = 800
@@ -21,7 +22,10 @@ mut:
 	mouse_diff_x        f64
 	mouse_diff_y        f64
 	//@temp maybe those state exists inside the window
-	mouse_down bool
+	mouse_down    bool
+	creating_anim bool
+	mouse_anim_x  f64
+	mouse_anim_y  f64
 }
 
 fn main() {
@@ -47,6 +51,8 @@ fn main() {
 		on_mouse_up: window_mouse_up
 		on_scroll: window_scroll
 	}, [
+		// @todo find a way to move it where we want (absolute position, maybe with offset_x, offset_y ?)
+		ui.button(text: 'Add', onclick: btn_create_anim_finish_click),
 		ui.row({
 			spacing: 10
 			widths: [0.2, 0.8]
@@ -63,6 +69,7 @@ fn main() {
 			ui.row({ spacing: 10 }, [
 				ui.button(text: '-', onclick: btn_zoom_minus_click),
 				ui.button(text: '+', onclick: btn_zoom_plus_click),
+				ui.button(text: 'Create anim', onclick: btn_create_anim_click),
 			]),
 			ui.canvas(
 				draw_fn: canvas_draw
@@ -85,9 +92,24 @@ fn btn_add_anim_click(mut app State, btn &ui.Button) {
 	children << ui.button(text: '+')
 }
 
+fn btn_create_anim_click(mut app State, btn &ui.Button) {
+	app.creating_anim = true
+}
+
+fn btn_create_anim_finish_click(mut app State, btn &ui.Button) {
+}
+
 fn window_mouse_down(evt ui.MouseEvent, window &ui.Window) {
 	mut app := &State(window.state)
 	app.mouse_down = true
+
+	if app.creating_anim {
+		app.mouse_anim_x = evt.x
+		app.mouse_anim_y = evt.y
+	}
+
+	btn := window.get_children()[0]
+	println('$btn.text')
 }
 
 fn window_mouse_up(evt ui.MouseEvent, window &ui.Window) {
@@ -129,13 +151,7 @@ fn zoom_out(mut app State) {
 	}
 }
 
-fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
-	// @temp kind of hacky need to find a way to use ctx before
-	if !app.current_sprite.ok {
-		println('Load img')
-		app.current_sprite = ctx.create_image(app.current_sprite_path)
-	}
-
+fn draw_zoomed_image(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 	// Fit image inside the canvas
 	// @todo doesn't work on some cases like is_image_larger false and canvas width < image width
 	is_image_larger := app.current_sprite.width > app.current_sprite.height
@@ -169,14 +185,14 @@ fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 	// Only move image when it is not entirely display
 	offset_padding := 10
 	new_offset_x := app.image_offset_x - int(app.mouse_diff_x)
-	if app.mouse_diff_x != 0 && app.current_sprite.width > canvas.width
+	if !app.creating_anim && app.mouse_diff_x != 0 && app.current_sprite.width > canvas.width
 		&& new_offset_x >= -offset_padding
 		&& new_offset_x + image_part_width < app.current_sprite.width + offset_padding {
 		app.image_offset_x = new_offset_x
 	}
 
 	new_offset_y := app.image_offset_y - int(app.mouse_diff_y)
-	if app.mouse_diff_y != 0 && app.current_sprite.height > canvas.height
+	if !app.creating_anim && app.mouse_diff_y != 0 && app.current_sprite.height > canvas.height
 		&& new_offset_y >= -offset_padding
 		&& new_offset_y + image_part_height < app.current_sprite.height + offset_padding {
 		app.image_offset_y = new_offset_y
@@ -184,4 +200,22 @@ fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 
 	ctx.draw_image_part(gg.Rect{canvas.x, canvas.y, image_width, image_height}, gg.Rect{app.image_offset_x, app.image_offset_y, image_part_width, image_part_height},
 		app.current_sprite)
+}
+
+fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
+	// @temp kind of hacky need to find a way to use ctx before
+	if !app.current_sprite.ok {
+		println('Load img')
+		app.current_sprite = ctx.create_image(app.current_sprite_path)
+	}
+
+	draw_zoomed_image(mut ctx, mut app, canvas)
+
+	if app.creating_anim && app.mouse_down {
+		anim_width, anim_height := app.mouse_prev_x - app.mouse_anim_x, app.mouse_prev_y - app.mouse_anim_y
+		// @todo draw two rectangle to have a "bolder" rect
+		// @todo find a way to draw a button for validating anim creation
+		ctx.draw_rect(f32(app.mouse_anim_x), f32(app.mouse_anim_y), f32(anim_width), f32(anim_height),
+			gx.gray)
+	}
 }
