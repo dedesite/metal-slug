@@ -95,6 +95,7 @@ fn window_mouse_up(evt ui.MouseEvent, window &ui.Window) {
 	app.mouse_down = false
 }
 
+// @todo handle mouse move only inside canvas
 fn window_mouse_move(evt ui.MouseMoveEvent, window &ui.Window) {
 	mut app := &State(window.state)
 	if app.mouse_down {
@@ -152,25 +153,6 @@ fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 	image_width *= int(app.zoom_scale)
 	image_height *= int(app.zoom_scale)
 
-	// Calculate offset (we can grab image on mouse move + down)
-	// Only move image when it is not entirely display
-	// @temp not fully functionnal right now
-	new_offset_x := app.image_offset_x - int(app.mouse_diff_x)
-	if app.mouse_diff_x != 0 && image_width > canvas.width && new_offset_x >= 0 {
-		// @temp Doesn't work for all zoom factor
-		// @todo find a way to calculate the current pixel size
-		// && new_offset_x + canvas.width < app.current_sprite.width {
-		app.image_offset_x = new_offset_x
-	}
-
-	new_offset_y := app.image_offset_y - int(app.mouse_diff_y)
-	if app.mouse_diff_y != 0 && image_height > canvas.height && new_offset_y >= 0 {
-		// @temp Doesn't work for all zoom factor
-		// @todo find a way to calculate the current pixel size
-		// && new_offset_y < app.current_sprite.height {
-		app.image_offset_y = new_offset_y
-	}
-
 	// Calculate which part to display and crop image to canvas
 	mut image_part_width, mut image_part_height := app.current_sprite.width, app.current_sprite.height
 	if image_width > canvas.width {
@@ -183,7 +165,23 @@ fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 		image_height = canvas.height
 	}
 
-	// @todo maybe add an offset on the image rect to be able to create rectangle at the image edges.
+	// Calculate offset (we can grab image on mouse move + down)
+	// Only move image when it is not entirely display
+	offset_padding := 10
+	new_offset_x := app.image_offset_x - int(app.mouse_diff_x)
+	if app.mouse_diff_x != 0 && app.current_sprite.width > canvas.width
+		&& new_offset_x >= -offset_padding
+		&& new_offset_x + image_part_width < app.current_sprite.width + offset_padding {
+		app.image_offset_x = new_offset_x
+	}
+
+	new_offset_y := app.image_offset_y - int(app.mouse_diff_y)
+	if app.mouse_diff_y != 0 && app.current_sprite.height > canvas.height
+		&& new_offset_y >= -offset_padding
+		&& new_offset_y + image_part_height < app.current_sprite.height + offset_padding {
+		app.image_offset_y = new_offset_y
+	}
+
 	ctx.draw_image_part(gg.Rect{canvas.x, canvas.y, image_width, image_height}, gg.Rect{app.image_offset_x, app.image_offset_y, image_part_width, image_part_height},
 		app.current_sprite)
 }
