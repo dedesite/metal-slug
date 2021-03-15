@@ -22,10 +22,15 @@ mut:
 	mouse_diff_x        f64
 	mouse_diff_y        f64
 	//@temp maybe those state exists inside the window
-	mouse_down    bool
-	creating_anim bool
-	mouse_anim_x  f64
-	mouse_anim_y  f64
+	mouse_down                  bool
+	finish_anim_row             &ui.Stack
+	creating_anim               bool
+	editing_anim                bool
+	displaying_finish_anim_btns bool
+	mouse_anim_x                f32
+	mouse_anim_y                f32
+	anim_width                  f32
+	anim_height                 f32
 }
 
 fn main() {
@@ -37,9 +42,17 @@ fn main() {
 		exit(1)
 	}
 
-	mut app := &State{}
-	app.current_sprite_path = os.args[1]
+	mut app := &State{
+		current_sprite_path: os.args[1]
+		//@todo buttons are shown behind the image, need fix in ui ?
+		finish_anim_row: ui.row({ spacing: 10 }, [
+			//@bug wierd bug when displaying two buttons, cancel callback never called
+			// ui.button(text: 'X', onclick: btn_cancel_anim_finish_click),
+			ui.button(text: 'Add', onclick: btn_create_anim_finish_click),
+		])
+	}
 
+	// @todo add CTRL+Q to quit application
 	window := ui.window({
 		width: win_width
 		height: win_height
@@ -51,8 +64,6 @@ fn main() {
 		on_mouse_up: window_mouse_up
 		on_scroll: window_scroll
 	}, [
-		// @todo find a way to move it where we want (absolute position, maybe with offset_x, offset_y ?)
-		ui.button(text: 'Add', onclick: btn_create_anim_finish_click),
 		ui.row({
 			spacing: 10
 			widths: [0.2, 0.8]
@@ -62,6 +73,8 @@ fn main() {
 			margin_: 10
 		}, [
 			ui.button(text: '+', onclick: btn_add_anim_click),
+			// @question : don't know why but widget outside stack are not properly displayed
+			app.finish_anim_row,
 		]), ui.column({
 			spacing: 10
 			margin_: 10
@@ -97,24 +110,40 @@ fn btn_create_anim_click(mut app State, btn &ui.Button) {
 }
 
 fn btn_create_anim_finish_click(mut app State, btn &ui.Button) {
+	println('Finish')
+	hide_finish_anim_btns(mut app.finish_anim_row)
+	app.creating_anim = false
+	app.editing_anim = true
+	app.displaying_finish_anim_btns = false
+}
+
+fn btn_cancel_anim_finish_click(mut app State, btn &ui.Button) {
+	println('Cancel')
+	hide_finish_anim_btns(mut app.finish_anim_row)
+	app.creating_anim = false
+	app.displaying_finish_anim_btns = false
+	app.anim_width, app.anim_height = 0, 0
+	app.mouse_anim_x, app.mouse_anim_y = 0, 0
 }
 
 fn window_mouse_down(evt ui.MouseEvent, window &ui.Window) {
 	mut app := &State(window.state)
 	app.mouse_down = true
 
-	if app.creating_anim {
-		app.mouse_anim_x = evt.x
-		app.mouse_anim_y = evt.y
+	if app.creating_anim && !app.displaying_finish_anim_btns {
+		println('Mouse anim')
+		app.mouse_anim_x = f32(evt.x)
+		app.mouse_anim_y = f32(evt.y)
 	}
-
-	btn := window.get_children()[0]
-	println('$btn.text')
 }
 
 fn window_mouse_up(evt ui.MouseEvent, window &ui.Window) {
 	mut app := &State(window.state)
 	app.mouse_down = false
+	if app.creating_anim {
+		show_finish_anim_btns(mut app.finish_anim_row, int(evt.x), int(evt.y))
+		app.displaying_finish_anim_btns = true
+	}
 }
 
 // @todo handle mouse move only inside canvas
@@ -124,9 +153,14 @@ fn window_mouse_move(evt ui.MouseMoveEvent, window &ui.Window) {
 		if app.mouse_prev_x != -1 {
 			app.mouse_diff_x, app.mouse_diff_y = evt.x - app.mouse_prev_x, evt.y - app.mouse_prev_y
 		}
+
+		if app.creating_anim {
+			app.anim_width, app.anim_height = f32(evt.x) - app.mouse_anim_x, f32(evt.y) - app.mouse_anim_y
+		}
 	} else {
 		app.mouse_diff_x, app.mouse_diff_y = 0, 0
 	}
+
 	app.mouse_prev_x = evt.x
 	app.mouse_prev_y = evt.y
 }
@@ -168,16 +202,18 @@ fn draw_zoomed_image(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 	// @todo add a way to zoom at mouse position
 	image_width *= int(app.zoom_scale)
 	image_height *= int(app.zoom_scale)
+	width_ratio := f32(canvas.width) / f32(image_width)
+	height_ratio := f32(canvas.height) / f32(image_height)
 
 	// Calculate which part to display and crop image to canvas
 	mut image_part_width, mut image_part_height := app.current_sprite.width, app.current_sprite.height
 	if image_width > canvas.width {
-		image_part_width = int(image_part_width * f32(canvas.width) / f32(image_width))
+		image_part_width = int(image_part_width * width_ratio)
 		image_width = canvas.width
 	}
 
 	if image_height > canvas.height {
-		image_part_height = int(image_part_height * f32(canvas.height) / f32(image_height))
+		image_part_height = int(image_part_height * height_ratio)
 		image_height = canvas.height
 	}
 
@@ -198,8 +234,45 @@ fn draw_zoomed_image(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 		app.image_offset_y = new_offset_y
 	}
 
-	ctx.draw_image_part(gg.Rect{canvas.x, canvas.y, image_width, image_height}, gg.Rect{app.image_offset_x, app.image_offset_y, image_part_width, image_part_height},
-		app.current_sprite)
+	if app.editing_anim {
+		// @todo put this in a separate function and store it in the app state
+		// @todo check if margin can cause an error in calculus
+		rel_x, rel_y := app.mouse_anim_x - canvas.x, app.mouse_anim_y - canvas.y
+		img_width_ratio := f32(image_part_width) / f32(canvas.width)
+		img_height_ratio := f32(image_part_height) / f32(canvas.height)
+		anim_pos_x := app.image_offset_x + rel_x * img_width_ratio
+		anim_pos_y := app.image_offset_y + rel_y * img_height_ratio
+		anim_part_width := app.anim_width * img_width_ratio
+		anim_part_height := app.anim_height * img_height_ratio
+
+		ctx.draw_image_part(gg.Rect{canvas.x, canvas.y, app.anim_width, app.anim_height},
+			gg.Rect{anim_pos_x, anim_pos_y, anim_part_width, anim_part_height}, app.current_sprite)
+	} else {
+		ctx.draw_image_part(gg.Rect{canvas.x, canvas.y, image_width, image_height}, gg.Rect{app.image_offset_x, app.image_offset_y, image_part_width, image_part_height},
+			app.current_sprite)
+	}
+}
+
+//@temp there is no hide mecanism in ui for now
+fn hide_finish_anim_btns(mut row ui.Stack) {
+	for mut btn in row.get_children() {
+		if btn is ui.Button {
+			btn.x = -100
+			btn.y = -100
+		}
+	}
+}
+
+//@temp : hacky way to move buttons inside a row
+fn show_finish_anim_btns(mut row ui.Stack, pos_x int, pos_y int) {
+	for ind, mut btn in row.get_children() {
+		if btn is ui.Button {
+			//@bug wierd bug when displaying two buttons, cancel callback never called
+			// btn.x = pos_x - 100 / (ind + 1)
+			btn.x = pos_x
+			btn.y = pos_y
+		}
+	}
 }
 
 fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
@@ -207,15 +280,16 @@ fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 	if !app.current_sprite.ok {
 		println('Load img')
 		app.current_sprite = ctx.create_image(app.current_sprite_path)
+		// @temp don't know why it can be done right after window creation
+		hide_finish_anim_btns(mut app.finish_anim_row)
 	}
 
 	draw_zoomed_image(mut ctx, mut app, canvas)
 
-	if app.creating_anim && app.mouse_down {
-		anim_width, anim_height := app.mouse_prev_x - app.mouse_anim_x, app.mouse_prev_y - app.mouse_anim_y
+	if app.creating_anim {
 		// @todo draw two rectangle to have a "bolder" rect
-		// @todo find a way to draw a button for validating anim creation
-		ctx.draw_rect(f32(app.mouse_anim_x), f32(app.mouse_anim_y), f32(anim_width), f32(anim_height),
-			gx.gray)
+		// @ bug rect is displayed when clicking on finish ("frame" bug because mouse down is called before button click)
+		ctx.draw_empty_rect(f32(app.mouse_anim_x), f32(app.mouse_anim_y), app.anim_width,
+			app.anim_height, gx.gray)
 	}
 }
