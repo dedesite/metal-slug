@@ -20,25 +20,41 @@ pub mut:
 	ctx &gg.Context
 }
 
-struct Sprite {
-mut:
+pub struct Sprite {
+pub mut:
 	img  gg.Image
 	rect gg.Rect
 }
 
-struct Animation {
+pub struct Animation {
+pub mut:
 	frames []gg.Rect
 mut:
 	current_frame_index int
 	current_frame_ms    f64 = 0.0
 }
 
-struct AnimatedSprite {
+pub struct AnimatedSprite {
 	Sprite
+pub mut:
 	fps        int = 8
 	animations []Animation
 mut:
 	current_animation_index int
+}
+
+pub fn (mut anim Animation) get_current_frame_rect(delta_t f64) gg.Rect {
+	anim.current_frame_ms += delta_t
+	// @todo add ability to set fps for each anim
+	if anim.current_frame_ms > 1000 / 8 {
+		anim.current_frame_ms = 0
+		if anim.current_frame_index < anim.frames.len - 1 {
+			anim.current_frame_index++
+		} else {
+			anim.current_frame_index = 0
+		}
+	}
+	return anim.frames[anim.current_frame_index]
 }
 
 fn (mut s AnimatedSprite) animate(ctx gg.Context, delta_t f64) {
@@ -46,17 +62,7 @@ fn (mut s AnimatedSprite) animate(ctx gg.Context, delta_t f64) {
 		ctx.draw_image_part(s.rect, gg.Rect{0, 0, 50, 50}, s.img)
 	} else {
 		mut current_animation := &s.animations[s.current_animation_index]
-		current_animation.current_frame_ms += delta_t
-		if current_animation.current_frame_ms > 1000 / s.fps {
-			// println('New frame ${current_animation.current_frame_ms}')
-			current_animation.current_frame_ms = 0
-			if current_animation.current_frame_index < current_animation.frames.len - 1 {
-				current_animation.current_frame_index++
-			} else {
-				current_animation.current_frame_index = 0
-			}
-		}
-		current_frame_rect := current_animation.frames[current_animation.current_frame_index]
+		current_frame_rect := current_animation.get_current_frame_rect(delta_t)
 		ctx.draw_image_part(s.rect, current_frame_rect, s.img)
 	}
 }
