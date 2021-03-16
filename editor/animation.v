@@ -44,11 +44,9 @@ fn main() {
 
 	mut app := &State{
 		current_sprite_path: os.args[1]
-		//@todo buttons are shown behind the image, need fix in ui ?
 		finish_anim_row: ui.row({ spacing: 10 }, [
-			//@bug wierd bug when displaying two buttons, cancel callback never called
-			// ui.button(text: 'X', onclick: btn_cancel_anim_finish_click),
-			ui.button(text: 'Add', onclick: btn_create_anim_finish_click),
+			ui.button(z_index: 1, text: 'X', onclick: btn_cancel_anim_finish_click),
+			ui.button(z_index: 1, text: 'Add', onclick: btn_create_anim_finish_click),
 		])
 	}
 
@@ -110,7 +108,6 @@ fn btn_create_anim_click(mut app State, btn &ui.Button) {
 }
 
 fn btn_create_anim_finish_click(mut app State, btn &ui.Button) {
-	println('Finish')
 	hide_finish_anim_btns(mut app.finish_anim_row)
 	app.creating_anim = false
 	app.editing_anim = true
@@ -118,7 +115,6 @@ fn btn_create_anim_finish_click(mut app State, btn &ui.Button) {
 }
 
 fn btn_cancel_anim_finish_click(mut app State, btn &ui.Button) {
-	println('Cancel')
 	hide_finish_anim_btns(mut app.finish_anim_row)
 	app.creating_anim = false
 	app.displaying_finish_anim_btns = false
@@ -131,7 +127,6 @@ fn window_mouse_down(evt ui.MouseEvent, window &ui.Window) {
 	app.mouse_down = true
 
 	if app.creating_anim && !app.displaying_finish_anim_btns {
-		println('Mouse anim')
 		app.mouse_anim_x = f32(evt.x)
 		app.mouse_anim_y = f32(evt.y)
 	}
@@ -140,7 +135,7 @@ fn window_mouse_down(evt ui.MouseEvent, window &ui.Window) {
 fn window_mouse_up(evt ui.MouseEvent, window &ui.Window) {
 	mut app := &State(window.state)
 	app.mouse_down = false
-	if app.creating_anim {
+	if app.creating_anim && !app.displaying_finish_anim_btns {
 		show_finish_anim_btns(mut app.finish_anim_row, int(evt.x), int(evt.y))
 		app.displaying_finish_anim_btns = true
 	}
@@ -267,12 +262,24 @@ fn hide_finish_anim_btns(mut row ui.Stack) {
 fn show_finish_anim_btns(mut row ui.Stack, pos_x int, pos_y int) {
 	for ind, mut btn in row.get_children() {
 		if btn is ui.Button {
-			//@bug wierd bug when displaying two buttons, cancel callback never called
-			// btn.x = pos_x - 100 / (ind + 1)
-			btn.x = pos_x
-			btn.y = pos_y
+			btn.x = pos_x - 100 / (ind + 1)
+			btn.y = pos_y + 10
 		}
 	}
+	/*
+	mut cancel_btn := row.get_children()[0]
+    mut add_btn := row.get_children()[1]
+
+    if cancel_btn is ui.Button {
+        cancel_btn.x = pos_x - (cancel_btn.width + add_btn.width + 10)
+        cancel_btn.y = pos_y + 10
+    }
+
+    if add_btn is ui.Button {
+        add_btn.x = pos_x - add_btn.width
+        add_btn.y = pos_y + 10
+    }
+	*/
 }
 
 fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
