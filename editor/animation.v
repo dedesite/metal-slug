@@ -154,8 +154,7 @@ fn btn_add_frame_click(mut app State, btn &ui.Button) {
 	} else {
 		// Add a square after the last one
 		last_frame := app.current_anim.frames[app.current_anim.frames.len - 1]
-		app.current_anim.frames << gg.Rect{last_frame.x + last_frame.width, last_frame.y +
-			last_frame.height, app.current_anim_part_rect.height, app.current_anim_part_rect.height}
+		app.current_anim.frames << gg.Rect{last_frame.x + last_frame.width, last_frame.y, app.current_anim_part_rect.height, app.current_anim_part_rect.height}
 	}
 }
 
