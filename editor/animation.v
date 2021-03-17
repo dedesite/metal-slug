@@ -19,6 +19,10 @@ mut:
 	animated_sprite        engine.AnimatedSprite
 	current_anim_part_rect gg.Rect
 	current_anim           &engine.Animation
+	current_frame_pos_x    string
+	current_frame_pos_y    string
+	current_frame_width    string
+	current_frame_height   string
 	frame_sw               time.StopWatch = time.new_stopwatch({})
 	zoom_scale             int = 1
 	image_offset_x         int
@@ -77,7 +81,37 @@ fn main() {
 			spacing: 10
 			margin_: 10
 		}, [
-			ui.canvas(draw_fn: preview_anim_draw),
+			// @todo Find a way to have height = width
+			ui.canvas(draw_fn: preview_anim_draw, height: 200),
+			ui.textbox(
+				max_len: 4
+				is_numeric: true
+				placeholder: 'Pos X'
+				on_change: txt_frame_rect_change
+				is_focused: true
+				text: &app.current_frame_pos_x
+			),
+			ui.textbox(
+				max_len: 4
+				is_numeric: true
+				placeholder: 'Pos Y'
+				on_change: txt_frame_rect_change
+				text: &app.current_frame_pos_y
+			),
+			ui.textbox(
+				max_len: 4
+				is_numeric: true
+				placeholder: 'Width'
+				on_change: txt_frame_rect_change
+				text: &app.current_frame_width
+			),
+			ui.textbox(
+				max_len: 4
+				is_numeric: true
+				placeholder: 'Height'
+				on_change: txt_frame_rect_change
+				text: &app.current_frame_height
+			),
 			// @question : don't know why but widget outside stack are not properly displayed
 			app.finish_anim_row,
 		]), ui.column({
@@ -148,13 +182,27 @@ fn btn_back_click(mut app State, btn &ui.Button) {
 }
 
 fn btn_add_frame_click(mut app State, btn &ui.Button) {
+	mut new_frame := gg.Rect{}
 	if app.current_anim.frames.len == 0 {
+		new_frame = gg.Rect{app.current_anim_part_rect.x, app.current_anim_part_rect.y, app.current_anim_part_rect.height, app.current_anim_part_rect.height}
 		// Just create a square as the first frame 
-		app.current_anim.frames << gg.Rect{app.current_anim_part_rect.x, app.current_anim_part_rect.y, app.current_anim_part_rect.height, app.current_anim_part_rect.height}
+		app.current_anim.frames << new_frame
 	} else {
 		// Add a square after the last one
 		last_frame := app.current_anim.frames[app.current_anim.frames.len - 1]
-		app.current_anim.frames << gg.Rect{last_frame.x + last_frame.width, last_frame.y, app.current_anim_part_rect.height, app.current_anim_part_rect.height}
+		new_frame = gg.Rect{last_frame.x + last_frame.width, last_frame.y, last_frame.width, last_frame.height}
+		app.current_anim.frames << new_frame
+	}
+	app.current_frame_pos_x = int(new_frame.x).str()
+	app.current_frame_pos_y = int(new_frame.y).str()
+	app.current_frame_width = int(new_frame.width).str()
+	app.current_frame_height = int(new_frame.height).str()
+}
+
+fn txt_frame_rect_change(value string, mut app State) {
+	if app.editing_anim && app.current_anim.frames.len > 0 {
+		new_frame := gg.Rect{app.current_frame_pos_x.f32(), app.current_frame_pos_y.f32(), app.current_frame_width.f32(), app.current_frame_height.f32()}
+		app.current_anim.frames[app.current_anim.frames.len - 1] = new_frame
 	}
 }
 
@@ -233,6 +281,7 @@ fn draw_edited_anim(mut ctx gg.Context, mut app State, canvas &ui.Canvas, image_
 		app.current_anim_part_rect, app.sprite_map)
 
 	// Now draw anims frame rect
+	//@bug does not show the real position if frame.x or .y is changed
 	mut curr_x, mut curr_y := canvas.x, canvas.y
 	for frame in app.current_anim.frames {
 		ctx.draw_empty_rect(curr_x, curr_y, frame.width / img_width_ratio, frame.height / img_height_ratio,
@@ -256,6 +305,7 @@ fn draw_zoomed_image(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 
 	// Applying zoom
 	// @todo add a way to zoom at mouse position
+	// @todo add zooming ability when editing animation
 	image_width *= int(app.zoom_scale)
 	image_height *= int(app.zoom_scale)
 	width_ratio := f32(canvas.width) / f32(image_width)
@@ -275,6 +325,7 @@ fn draw_zoomed_image(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 
 	// Calculate offset (we can grab image on mouse move + down)
 	// Only move image when it is not entirely display
+	// @bug does not properly work in full screen
 	offset_padding := 10
 	new_offset_x := app.image_offset_x - int(app.mouse_diff_x)
 	if !app.creating_anim && app.mouse_diff_x != 0 && app.sprite_map.width > canvas.width
@@ -359,8 +410,8 @@ fn preview_anim_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 
 		frame_rect := app.current_anim.get_current_frame_rect(delta_t)
 
-		// @bug animation is not working properly, maybe frame are not well created ?
-		ctx.draw_image_part(gg.Rect{canvas.x, canvas.y, frame_rect.width, frame_rect.height},
-			frame_rect, app.sprite_map)
+		// @todo set width and height relatively to frame_rect ratio
+		ctx.draw_image_part(gg.Rect{canvas.x, canvas.y, canvas.width, canvas.width}, frame_rect,
+			app.sprite_map)
 	}
 }
