@@ -11,8 +11,6 @@ const (
 )
 
 struct State {
-	test     string
-	is_error bool
 mut:
 	sprite_map_path        string
 	sprite_map             gg.Image
@@ -265,7 +263,6 @@ fn zoom_out(mut app State) {
 }
 
 fn draw_edited_anim(mut ctx gg.Context, mut app State, canvas &ui.Canvas, image_part_width f32, image_part_height f32) {
-	// @todo put this in a separate function and store it in the app state
 	// @todo check if margin can cause an error in calculus
 	rel_x, rel_y := app.mouse_anim_x - canvas.x, app.mouse_anim_y - canvas.y
 	img_width_ratio := image_part_width / f32(canvas.width)
