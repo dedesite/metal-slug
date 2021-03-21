@@ -32,6 +32,7 @@ mut:
 	//@temp maybe these state exists inside the window
 	mouse_down                  bool
 	finish_anim_row             &ui.Stack
+	toolbar_container           &ui.Stack
 	creating_anim               bool
 	editing_anim                bool
 	displaying_finish_anim_btns bool
@@ -56,6 +57,11 @@ fn main() {
 		finish_anim_row: ui.row({ spacing: 10 }, [
 			ui.button(z_index: 1, text: 'X', onclick: btn_cancel_anim_finish_click),
 			ui.button(z_index: 1, text: 'Add', onclick: btn_create_anim_finish_click),
+		])
+		toolbar_container: ui.row({ spacing: 10 }, [
+			ui.button(text: '-', onclick: btn_zoom_minus_click),
+			ui.button(text: '+', onclick: btn_zoom_plus_click),
+			ui.button(text: 'Create anim', onclick: btn_create_anim_click),
 		])
 	}
 
@@ -116,19 +122,8 @@ fn main() {
 			spacing: 10
 			margin_: 10
 		}, [
-			ui.row({ spacing: 10 }, [
-				ui.button(text: '-', onclick: btn_zoom_minus_click),
-				ui.button(text: '+', onclick: btn_zoom_plus_click),
-				ui.button(text: 'Create anim', onclick: btn_create_anim_click),
-			]),
-			// @temp should replace the row above when on animation edition
-			ui.row({ spacing: 10 }, [
-				ui.button(text: 'Back', onclick: btn_back_click),
-				ui.button(text: 'Add frame', onclick: btn_add_frame_click),
-			]),
-			ui.canvas(
-				draw_fn: canvas_draw
-			),
+			app.toolbar_container,
+			ui.canvas(draw_fn: canvas_draw),
 		])]),
 	])
 	ui.run(window)
@@ -159,6 +154,26 @@ fn btn_create_anim_finish_click(mut app State, btn &ui.Button) {
 
 	app.current_anim = &engine.Animation{}
 	app.animated_sprite.animations << app.current_anim
+
+	// Show editing toolbar
+	// @temp find a better way to handle toolbar visibility
+	// maybe with s.set_children_visible(state, 0)
+	purge_toolbar_container(mut app.toolbar_container)
+
+	app.toolbar_container.add(
+		children: [
+			ui.button(text: 'Back', onclick: btn_back_click),
+			ui.button(text: 'Add frame', onclick: btn_add_frame_click),
+		]
+	)
+}
+
+fn purge_toolbar_container(mut toolbar_container ui.Stack) {
+	// @todo find a better way to remove all children from a stack
+	nb_children := toolbar_container.get_children().len
+	for _ in 0 .. nb_children {
+		toolbar_container.remove(at: 0)
+	}
 }
 
 fn reset_anim_state(mut app State) {
@@ -177,6 +192,18 @@ fn btn_cancel_anim_finish_click(mut app State, btn &ui.Button) {
 fn btn_back_click(mut app State, btn &ui.Button) {
 	hide_finish_anim_btns(mut app.finish_anim_row)
 	reset_anim_state(mut app)
+
+	// @temp find a better way to handle toolbar visibility
+	// maybe with s.set_children_visible(state, 0)
+	purge_toolbar_container(mut app.toolbar_container)
+
+	app.toolbar_container.add(
+		children: [
+			ui.button(text: '-', onclick: btn_zoom_minus_click),
+			ui.button(text: '+', onclick: btn_zoom_plus_click),
+			ui.button(text: 'Create anim', onclick: btn_create_anim_click),
+		]
+	)
 }
 
 fn btn_add_frame_click(mut app State, btn &ui.Button) {
@@ -364,26 +391,11 @@ fn show_finish_anim_btns(mut row ui.Stack, pos_x int, pos_y int) {
 			btn.y = pos_y + 10
 		}
 	}
-	/*
-	mut cancel_btn := row.get_children()[0]
-    mut add_btn := row.get_children()[1]
-
-    if cancel_btn is ui.Button {
-        cancel_btn.x = pos_x - (cancel_btn.width + add_btn.width + 10)
-        cancel_btn.y = pos_y + 10
-    }
-
-    if add_btn is ui.Button {
-        add_btn.x = pos_x - add_btn.width
-        add_btn.y = pos_y + 10
-    }
-	*/
 }
 
 fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 	// @temp kind of hacky need to find a way to use ctx before
 	if !app.sprite_map.ok {
-		println('Load img')
 		app.sprite_map = ctx.create_image(app.sprite_map_path)
 		app.animated_sprite.img = app.sprite_map
 		// @temp don't know why it can be done right after window creation
