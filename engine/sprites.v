@@ -43,6 +43,7 @@ mut:
 	current_animation_index int
 }
 
+// @todo find a better name
 pub fn (mut anim Animation) get_current_frame_rect(delta_t f64) gg.Rect {
 	anim.current_frame_ms += delta_t
 	// @todo add ability to set fps for each anim
@@ -61,8 +62,7 @@ fn (mut s AnimatedSprite) animate(ctx gg.Context, delta_t f64) {
 	if s.animations.len == 0 {
 		ctx.draw_image_part(s.rect, gg.Rect{0, 0, 50, 50}, s.img)
 	} else {
-		mut current_animation := &s.animations[s.current_animation_index]
-		current_frame_rect := current_animation.get_current_frame_rect(delta_t)
+		current_frame_rect := s.animations[s.current_animation_index].get_current_frame_rect(delta_t)
 		ctx.draw_image_part(s.rect, current_frame_rect, s.img)
 	}
 }

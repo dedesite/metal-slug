@@ -160,6 +160,7 @@ fn btn_create_anim_finish_click(mut app State, btn &ui.Button) {
 	// maybe with s.set_children_visible(state, 0)
 	purge_toolbar_container(mut app.toolbar_container)
 
+	// @bug the toolbar size is increased after purge
 	app.toolbar_container.add(
 		children: [
 			ui.button(text: 'Back', onclick: btn_back_click),
@@ -408,7 +409,7 @@ fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
 		// @todo draw two rectangle to have a "bolder" rect
 		// @ bug rect is displayed when clicking on finish ("frame" bug because mouse down is called before button click)
 		ctx.draw_empty_rect(f32(app.mouse_anim_x), f32(app.mouse_anim_y), app.anim_width,
-			app.anim_height, gx.gray)
+			app.anim_height, gx.black)
 	}
 }
 
