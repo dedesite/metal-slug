@@ -8,6 +8,7 @@ import engine
 const (
 	win_width  = 800
 	win_height = 600
+	scale_tool_radius = 8
 )
 
 struct State {
@@ -331,8 +332,17 @@ fn draw_edited_anim(mut ctx gg.Context, mut app State, canvas &ui.CanvasLayout, 
 	//@bug does not show the real position if frame.x or .y is changed
 	mut curr_x, mut curr_y := canvas.x, canvas.y
 	for frame in app.current_anim.frames {
-		ctx.draw_empty_rect(curr_x, curr_y, frame.width / img_width_ratio, frame.height / img_height_ratio,
-			gx.gray)
+		rect_width, rect_height := frame.width / img_width_ratio, frame.height / img_height_ratio
+		ctx.draw_empty_rect(curr_x, curr_y, rect_width, rect_height, gx.gray)
+		// draw scale tools
+		// top
+		ctx.draw_circle(curr_x + rect_width / 2, curr_y, scale_tool_radius, gx.gray)
+		// right
+		ctx.draw_circle(curr_x + rect_width, curr_y + rect_height / 2, scale_tool_radius, gx.gray)
+		// bottom
+		ctx.draw_circle(curr_x + rect_width / 2, curr_y + rect_height, scale_tool_radius, gx.gray)
+		// left
+		ctx.draw_circle(curr_x, curr_y + rect_height / 2, scale_tool_radius, gx.gray)
 		curr_x += int(frame.width / img_width_ratio)
 	}
 }
