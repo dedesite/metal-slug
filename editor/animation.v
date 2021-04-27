@@ -72,9 +72,6 @@ fn main() {
 		state: app
 		title: 'Sprite Animation Editor'
 		mode: .resizable
-		on_mouse_move: window_mouse_move
-		on_mouse_down: window_mouse_down
-		on_mouse_up: window_mouse_up
 		on_scroll: window_scroll
 	}, [
 		ui.row({
@@ -123,7 +120,12 @@ fn main() {
 			margin_: 10
 		}, [
 			app.toolbar_container,
-			ui.canvas(draw_fn: canvas_draw),
+			ui.canvas_layout(
+				draw_fn: canvas_draw
+				mouse_move_fn: canvas_mouse_move
+				mouse_down_fn: canvas_mouse_down
+				mouse_up_fn: canvas_mouse_up
+			)
 		])]),
 	])
 	ui.run(window)
@@ -155,11 +157,6 @@ fn btn_create_anim_finish_click(mut app State, btn &ui.Button) {
 	app.current_anim = &engine.Animation{}
 	app.animated_sprite.animations << app.current_anim
 
-	// Show editing toolbar
-	// @temp find a better way to handle toolbar visibility
-	// maybe with s.set_children_visible(state, 0)
-	purge_toolbar_container(mut app.toolbar_container)
-
 	// @bug the toolbar size is increased after purge
 	app.toolbar_container.add(
 		children: [
@@ -167,12 +164,25 @@ fn btn_create_anim_finish_click(mut app State, btn &ui.Button) {
 			ui.button(text: 'Add frame', onclick: btn_add_frame_click),
 		]
 	)
+
+	// Show editing toolbar
+	// @temp find a better way to handle toolbar visibility
+	// maybe with s.set_children_visible(state, 0)
+	// @temp fix a bug when empty toolbar size incrise
+	purge_toolbar_container(mut app.toolbar_container, 3)
 }
 
-fn purge_toolbar_container(mut toolbar_container ui.Stack) {
+fn purge_toolbar_container(mut toolbar_container ui.Stack, tmp_nb_element int) {
 	// @todo find a better way to remove all children from a stack
+	// @temp fix a bug when empty toolbar size increase
 	nb_children := toolbar_container.get_children().len
-	for _ in 0 .. nb_children {
+	// @temp fix a really wierd bug, need to investigate
+	mut to_remove := tmp_nb_element
+	if nb_children == 6 {
+		to_remove++
+	}
+
+	for _ in 0 .. to_remove {
 		toolbar_container.remove(at: 0)
 	}
 }
@@ -194,10 +204,6 @@ fn btn_back_click(mut app State, btn &ui.Button) {
 	hide_finish_anim_btns(mut app.finish_anim_row)
 	reset_anim_state(mut app)
 
-	// @temp find a better way to handle toolbar visibility
-	// maybe with s.set_children_visible(state, 0)
-	purge_toolbar_container(mut app.toolbar_container)
-
 	app.toolbar_container.add(
 		children: [
 			ui.button(text: '-', onclick: btn_zoom_minus_click),
@@ -205,6 +211,10 @@ fn btn_back_click(mut app State, btn &ui.Button) {
 			ui.button(text: 'Create anim', onclick: btn_create_anim_click),
 		]
 	)
+
+	// @temp find a better way to handle toolbar visibility
+	// maybe with s.set_children_visible(state, 0)
+	purge_toolbar_container(mut app.toolbar_container, 2)
 }
 
 fn btn_add_frame_click(mut app State, btn &ui.Button) {
@@ -232,42 +242,54 @@ fn txt_frame_rect_change(value string, mut app State) {
 	}
 }
 
-fn window_mouse_down(evt ui.MouseEvent, window &ui.Window) {
-	mut app := &State(window.state)
+struct Point {
+	x int
+	y int
+}
+
+fn get_mouse_relative_pos(mouse_x int, mouse_y int, canvas &ui.CanvasLayout) Point {
+	return Point{x: mouse_x - canvas.x, y: mouse_y - canvas.y}
+}
+
+fn canvas_mouse_down(evt ui.MouseEvent, canvas &ui.CanvasLayout) {
+	mut app := &State(canvas.get_state())
+	pos := get_mouse_relative_pos(evt.x, evt.y, canvas)
 	app.mouse_down = true
 
 	if app.creating_anim && !app.displaying_finish_anim_btns {
-		app.mouse_anim_x = f32(evt.x)
-		app.mouse_anim_y = f32(evt.y)
+		app.mouse_anim_x = f32(pos.x)
+		app.mouse_anim_y = f32(pos.y)
 	}
 }
 
-fn window_mouse_up(evt ui.MouseEvent, window &ui.Window) {
-	mut app := &State(window.state)
+fn canvas_mouse_up(evt ui.MouseEvent, canvas &ui.CanvasLayout) {
+	mut app := &State(canvas.get_state())
 	app.mouse_down = false
 	if app.creating_anim && !app.displaying_finish_anim_btns {
+		// @todo fix CanvasLayout to display widget inside canvas
 		show_finish_anim_btns(mut app.finish_anim_row, int(evt.x), int(evt.y))
 		app.displaying_finish_anim_btns = true
 	}
 }
 
 // @todo handle mouse move only inside canvas
-fn window_mouse_move(evt ui.MouseMoveEvent, window &ui.Window) {
-	mut app := &State(window.state)
+fn canvas_mouse_move(evt ui.MouseMoveEvent, canvas &ui.CanvasLayout) {
+	mut app := &State(canvas.get_state())
+	pos := get_mouse_relative_pos(int(evt.x), int(evt.y), canvas)
 	if app.mouse_down && !app.editing_anim {
 		if app.mouse_prev_x != -1 {
-			app.mouse_diff_x, app.mouse_diff_y = evt.x - app.mouse_prev_x, evt.y - app.mouse_prev_y
+			app.mouse_diff_x, app.mouse_diff_y = pos.x - app.mouse_prev_x, pos.y - app.mouse_prev_y
 		}
 
 		if app.creating_anim {
-			app.anim_width, app.anim_height = f32(evt.x) - app.mouse_anim_x, f32(evt.y) - app.mouse_anim_y
+			app.anim_width, app.anim_height = f32(pos.x) - app.mouse_anim_x, f32(pos.y) - app.mouse_anim_y
 		}
 	} else {
 		app.mouse_diff_x, app.mouse_diff_y = 0, 0
 	}
 
-	app.mouse_prev_x = evt.x
-	app.mouse_prev_y = evt.y
+	app.mouse_prev_x = pos.x
+	app.mouse_prev_y = pos.y
 }
 
 fn window_scroll(evt ui.ScrollEvent, mut window ui.Window) {
@@ -290,9 +312,9 @@ fn zoom_out(mut app State) {
 	}
 }
 
-fn draw_edited_anim(mut ctx gg.Context, mut app State, canvas &ui.Canvas, image_part_width f32, image_part_height f32) {
+fn draw_edited_anim(mut ctx gg.Context, mut app State, canvas &ui.CanvasLayout, image_part_width f32, image_part_height f32) {
 	// @todo check if margin can cause an error in calculus
-	rel_x, rel_y := app.mouse_anim_x - canvas.x, app.mouse_anim_y - canvas.y
+	rel_x, rel_y := app.mouse_anim_x, app.mouse_anim_y
 	img_width_ratio := image_part_width / f32(canvas.width)
 	img_height_ratio := image_part_height / f32(canvas.height)
 	anim_pos_x := app.image_offset_x + rel_x * img_width_ratio
@@ -315,7 +337,7 @@ fn draw_edited_anim(mut ctx gg.Context, mut app State, canvas &ui.Canvas, image_
 	}
 }
 
-fn draw_zoomed_image(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
+fn draw_zoomed_image(mut ctx gg.Context, mut app State, canvas &ui.CanvasLayout) {
 	// Fit image inside the canvas
 	// @todo doesn't work on some cases like is_image_larger false and canvas width < image width
 	is_image_larger := app.sprite_map.width > app.sprite_map.height
@@ -394,21 +416,21 @@ fn show_finish_anim_btns(mut row ui.Stack, pos_x int, pos_y int) {
 	}
 }
 
-fn canvas_draw(mut ctx gg.Context, mut app State, canvas &ui.Canvas) {
+fn canvas_draw(mut canvas &ui.CanvasLayout, mut app State) {
 	// @temp kind of hacky need to find a way to use ctx before
 	if !app.sprite_map.ok {
-		app.sprite_map = ctx.create_image(app.sprite_map_path)
+		app.sprite_map = canvas.ui.gg.create_image(app.sprite_map_path)
 		app.animated_sprite.img = app.sprite_map
 		// @temp don't know why it can be done right after window creation
 		hide_finish_anim_btns(mut app.finish_anim_row)
 	}
 
-	draw_zoomed_image(mut ctx, mut app, canvas)
+	draw_zoomed_image(mut canvas.ui.gg, mut app, canvas)
 
 	if app.creating_anim {
 		// @todo draw two rectangle to have a "bolder" rect
 		// @ bug rect is displayed when clicking on finish ("frame" bug because mouse down is called before button click)
-		ctx.draw_empty_rect(f32(app.mouse_anim_x), f32(app.mouse_anim_y), app.anim_width,
+		canvas.draw_empty_rect(f32(app.mouse_anim_x), f32(app.mouse_anim_y), app.anim_width,
 			app.anim_height, gx.black)
 	}
 }
