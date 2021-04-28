@@ -6,10 +6,16 @@ import time
 import engine
 
 const (
-	win_width  = 800
-	win_height = 600
+	win_width         = 800
+	win_height        = 600
 	scale_tool_radius = 8
 )
+
+struct Point {
+mut:
+	x f32
+	y f32
+}
 
 struct State {
 mut:
@@ -41,6 +47,11 @@ mut:
 	mouse_anim_y                f32
 	anim_width                  f32
 	anim_height                 f32
+	// scale tools pos
+	tool_top_pos    Point
+	tool_right_pos  Point
+	tool_bottom_pos Point
+	tool_left_pos   Point
 }
 
 fn main() {
@@ -79,7 +90,8 @@ fn main() {
 			spacing: 10
 			widths: [0.2, 0.8]
 			heights: ui.stretch
-		}, [ui.column({
+		}, [
+			ui.column({
 			spacing: 10
 			margin_: 10
 		}, [
@@ -116,18 +128,20 @@ fn main() {
 			),
 			// @question : don't know why but widget outside stack are not properly displayed
 			app.finish_anim_row,
-		]), ui.column({
-			spacing: 10
-			margin_: 10
-		}, [
-			app.toolbar_container,
-			ui.canvas_layout(
-				draw_fn: canvas_draw
-				mouse_move_fn: canvas_mouse_move
-				mouse_down_fn: canvas_mouse_down
-				mouse_up_fn: canvas_mouse_up
-			)
-		])]),
+		]),
+			ui.column({
+				spacing: 10
+				margin_: 10
+			}, [
+				app.toolbar_container,
+				ui.canvas_layout(
+					draw_fn: canvas_draw
+					mouse_move_fn: canvas_mouse_move
+					mouse_down_fn: canvas_mouse_down
+					mouse_up_fn: canvas_mouse_up
+				),
+			]),
+		]),
 	])
 	ui.run(window)
 }
@@ -222,7 +236,7 @@ fn btn_add_frame_click(mut app State, btn &ui.Button) {
 	mut new_frame := gg.Rect{}
 	if app.current_anim.frames.len == 0 {
 		new_frame = gg.Rect{app.current_anim_part_rect.x, app.current_anim_part_rect.y, app.current_anim_part_rect.height, app.current_anim_part_rect.height}
-		// Just create a square as the first frame 
+		// Just create a square as the first frame
 		app.current_anim.frames << new_frame
 	} else {
 		// Add a square after the last one
@@ -230,10 +244,10 @@ fn btn_add_frame_click(mut app State, btn &ui.Button) {
 		new_frame = gg.Rect{last_frame.x + last_frame.width, last_frame.y, last_frame.width, last_frame.height}
 		app.current_anim.frames << new_frame
 	}
-	app.current_frame_pos_x = int(new_frame.x).str()
-	app.current_frame_pos_y = int(new_frame.y).str()
-	app.current_frame_width = int(new_frame.width).str()
-	app.current_frame_height = int(new_frame.height).str()
+	app.current_frame_pos_x = new_frame.x.str()
+	app.current_frame_pos_y = new_frame.y.str()
+	app.current_frame_width = new_frame.width.str()
+	app.current_frame_height = new_frame.height.str()
 }
 
 fn txt_frame_rect_change(value string, mut app State) {
@@ -243,18 +257,17 @@ fn txt_frame_rect_change(value string, mut app State) {
 	}
 }
 
-struct Point {
-	x int
-	y int
-}
-
-fn get_mouse_relative_pos(mouse_x int, mouse_y int, canvas &ui.CanvasLayout) Point {
-	return Point{x: mouse_x - canvas.x, y: mouse_y - canvas.y}
+fn get_mouse_relative_pos(mouse_x f32, mouse_y f32, canvas &ui.CanvasLayout) Point {
+	return Point{
+		x: mouse_x - canvas.x
+		y: mouse_y - canvas.y
+	}
 }
 
 fn canvas_mouse_down(evt ui.MouseEvent, canvas &ui.CanvasLayout) {
 	mut app := &State(canvas.get_state())
-	pos := get_mouse_relative_pos(evt.x, evt.y, canvas)
+	//@fix non consistency in mouse event pos type (int or f32)
+	pos := get_mouse_relative_pos(f32(evt.x), f32(evt.y), canvas)
 	app.mouse_down = true
 
 	if app.creating_anim && !app.displaying_finish_anim_btns {
@@ -276,7 +289,7 @@ fn canvas_mouse_up(evt ui.MouseEvent, canvas &ui.CanvasLayout) {
 // @todo handle mouse move only inside canvas
 fn canvas_mouse_move(evt ui.MouseMoveEvent, canvas &ui.CanvasLayout) {
 	mut app := &State(canvas.get_state())
-	pos := get_mouse_relative_pos(int(evt.x), int(evt.y), canvas)
+	pos := get_mouse_relative_pos(f32(evt.x), f32(evt.y), canvas)
 	if app.mouse_down && !app.editing_anim {
 		if app.mouse_prev_x != -1 {
 			app.mouse_diff_x, app.mouse_diff_y = pos.x - app.mouse_prev_x, pos.y - app.mouse_prev_y
@@ -335,14 +348,35 @@ fn draw_edited_anim(mut ctx gg.Context, mut app State, canvas &ui.CanvasLayout, 
 		rect_width, rect_height := frame.width / img_width_ratio, frame.height / img_height_ratio
 		ctx.draw_empty_rect(curr_x, curr_y, rect_width, rect_height, gx.gray)
 		// draw scale tools
-		// top
-		ctx.draw_circle(curr_x + rect_width / 2, curr_y, scale_tool_radius, gx.gray)
-		// right
-		ctx.draw_circle(curr_x + rect_width, curr_y + rect_height / 2, scale_tool_radius, gx.gray)
-		// bottom
-		ctx.draw_circle(curr_x + rect_width / 2, curr_y + rect_height, scale_tool_radius, gx.gray)
-		// left
-		ctx.draw_circle(curr_x, curr_y + rect_height / 2, scale_tool_radius, gx.gray)
+		// println("Current frame : $frame")
+		// println("w:${app.current_frame_width} h:${app.current_frame_height} x:${app.current_frame_pos_x} y:${app.current_frame_pos_y}")
+		//@temp find a better way to compare frame (value needs to be rounded for the text input)
+		is_current_frame := frame.width == app.current_frame_width.f32()
+			&& frame.height == app.current_frame_height.f32()
+			&& frame.x == app.current_frame_pos_x.f32() && frame.y == app.current_frame_pos_y.f32()
+		if is_current_frame {
+			// top
+			app.tool_top_pos.x = curr_x + rect_width / 2
+			app.tool_top_pos.y = curr_y
+			ctx.draw_circle(app.tool_top_pos.x, app.tool_top_pos.y, scale_tool_radius,
+				gx.gray)
+			// right
+			app.tool_right_pos.x = curr_x + rect_width
+			app.tool_right_pos.y = curr_y + rect_height / 2
+			ctx.draw_circle(app.tool_right_pos.x, app.tool_right_pos.y, scale_tool_radius,
+				gx.gray)
+			// bottom
+			app.tool_bottom_pos.x = curr_x + rect_width / 2
+			app.tool_bottom_pos.y = curr_y + rect_height
+			ctx.draw_circle(app.tool_bottom_pos.x, app.tool_bottom_pos.y, scale_tool_radius,
+				gx.gray)
+			// left
+			app.tool_left_pos.x = curr_x
+			app.tool_left_pos.y = curr_y + rect_height / 2
+			ctx.draw_circle(app.tool_left_pos.x, app.tool_left_pos.y, scale_tool_radius,
+				gx.gray)
+		}
+
 		curr_x += int(frame.width / img_width_ratio)
 	}
 }
@@ -426,7 +460,7 @@ fn show_finish_anim_btns(mut row ui.Stack, pos_x int, pos_y int) {
 	}
 }
 
-fn canvas_draw(mut canvas &ui.CanvasLayout, mut app State) {
+fn canvas_draw(mut canvas ui.CanvasLayout, mut app State) {
 	// @temp kind of hacky need to find a way to use ctx before
 	if !app.sprite_map.ok {
 		app.sprite_map = canvas.ui.gg.create_image(app.sprite_map_path)
